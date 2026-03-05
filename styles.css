@@ -84,10 +84,11 @@ body {
 .field-input:focus { border-color: var(--accent); }
 
 /* Hidden by default; shown/hidden via JS */
-#subject-field  { display: none; }
-#chart-legend   { display: none; }
-#peer-count     { display: none; }
+#subject-field    { display: none; }
+#chart-legend     { display: none; }
+#peer-count       { display: none; }
 #variance-section { display: none; }
+#peer-link-section { display: none; }
 
 /* ── MODE TOGGLE ── */
 
@@ -336,6 +337,37 @@ body {
 .var-scores { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
 .var-delta  { font-size: 18px; font-weight: 800; color: var(--text); }
 .var-card.high .var-delta { color: #d97706; }
+
+/* ── PEER LINK BOX ── */
+
+.peer-link-box {
+  background: var(--accent-light);
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.peer-link-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.peer-link-desc {
+  font-size: 13px;
+  color: var(--sub);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.peer-link-btn {
+  font-size: 13px;
+  padding: 10px 18px;
+  width: auto;
+}
 
 /* ── SHARE BOX ── */
 

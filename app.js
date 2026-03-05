@@ -1,5 +1,21 @@
 'use strict';
 
+// ─── URL initialisation ──────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  const params  = new URLSearchParams(window.location.search);
+  const urlMode = params.get('mode');
+  const urlSubject = params.get('subject');
+
+  if (urlMode === 'peer') {
+    setMode('peer');
+    if (urlSubject) {
+      document.getElementById('subject-name').value = decodeURIComponent(urlSubject);
+      updateBeginButton();
+    }
+  }
+});
+
 // ─── State ───────────────────────────────────────────────────────────────────
 
 let mode          = 'self'; // 'self' | 'peer'
@@ -220,6 +236,9 @@ function showResults() {
   // Share text
   buildShareText(displaySubject, top, arch, selfScores, peerAvgScores, peerList ? peerList.length : 0);
 
+  // Peer link box — only shown after self-evaluation
+  document.getElementById('peer-link-section').style.display = mode === 'self' ? 'block' : 'none';
+
   show('screen-results');
 }
 
@@ -366,6 +385,18 @@ function copyResult() {
     const btn = document.querySelector('.result-actions .btn-ghost');
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = 'Copy Summary'; }, 2000);
+  });
+}
+
+function copyPeerLink() {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('mode', 'peer');
+  url.searchParams.set('subject', evaluatorName);
+  navigator.clipboard.writeText(url.toString()).then(() => {
+    const btn = document.getElementById('btn-copy-peer-link');
+    btn.textContent = 'Link copied!';
+    setTimeout(() => { btn.textContent = 'Copy peer evaluation link'; }, 2000);
   });
 }
 
