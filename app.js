@@ -79,8 +79,11 @@ function startQuiz() {
 
 function renderQ() {
   const q = QUESTIONS[ORDER[current]];
+  const qText = mode === 'peer' && q.peerText
+    ? q.peerText.replace(/\{name\}/g, subjectName)
+    : q.text;
   document.getElementById('q-axis').textContent = q.axis;
-  document.getElementById('q-text').textContent = q.text;
+  document.getElementById('q-text').textContent = qText;
 
   const wrap = document.getElementById('likert-options');
   wrap.innerHTML = '';

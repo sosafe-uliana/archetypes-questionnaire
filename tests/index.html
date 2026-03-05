@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tests — Engineering Leadership Archetypes</title>
   <style>
     body     { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; background: #f7f8fa; color: #1a1d23; }
@@ -30,9 +31,9 @@
   <div id="app-stubs">
     <input  id="evaluator-name" value=""/>
     <input  id="subject-name"   value=""/>
-    <button id="btn-begin"      disabled></button>
-    <button id="btn-mode-self"  class="mode-btn active"></button>
-    <button id="btn-mode-peer"  class="mode-btn"></button>
+    <button type="button" id="btn-begin"      disabled></button>
+    <button type="button" id="btn-mode-self"  class="mode-btn active"></button>
+    <button type="button" id="btn-mode-peer"  class="mode-btn"></button>
     <div    id="subject-field"></div>
     <div    id="intro-badge"></div>
   </div>
@@ -188,6 +189,8 @@
       test('QUESTIONS has exactly 10 items',                       QUESTIONS.length === 10);
       test('Every question has a non-empty axis',                  QUESTIONS.every(q => q.axis && q.axis.length > 0));
       test('Every question has a non-empty text',                  QUESTIONS.every(q => q.text && q.text.length > 0));
+      test('Every question has a non-empty peerText',              QUESTIONS.every(q => q.peerText && q.peerText.length > 0));
+      test('Every peerText contains the {name} placeholder',       QUESTIONS.every(q => q.peerText.includes('{name}')));
       test('Every question pole is a known value',                 QUESTIONS.every(q => poles.includes(q.pole)));
       test('ARCHETYPES has exactly 4 entries',                     Object.keys(ARCHETYPES).length === 4);
       test('Every archetype has a tagline',                        Object.values(ARCHETYPES).every(a => a.tagline && a.tagline.length > 0));
