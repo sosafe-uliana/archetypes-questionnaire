@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Engineering Leadership Archetypes</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- ── INTRO ── -->
+<div class="screen active" id="screen-intro">
+  <div class="intro-card">
+    <div class="intro-badge" id="intro-badge">Self-Assessment</div>
+    <h1>Engineering Leadership Archetypes</h1>
+    <p>10 statements. No right answers. Discover your natural leadership home across four dimensions that matter specifically in engineering organizations.</p>
+
+    <div class="field-group">
+      <label class="field-label" for="evaluator-name">Your first name</label>
+      <input type="text" id="evaluator-name" class="field-input" placeholder="e.g. Alex" oninput="updateBeginButton()"/>
+    </div>
+
+    <div class="mode-toggle-wrap">
+      <span class="mode-label">Evaluation type</span>
+      <div class="mode-toggle">
+        <button type="button" class="mode-btn active" id="btn-mode-self" onclick="setMode('self')">Self Evaluation</button>
+        <button type="button" class="mode-btn" id="btn-mode-peer" onclick="setMode('peer')">360&deg; Peer</button>
+      </div>
+    </div>
+
+    <div class="field-group" id="subject-field">
+      <label class="field-label" for="subject-name">Who are you evaluating?</label>
+      <input type="text" id="subject-name" class="field-input" placeholder="Their first name" oninput="updateBeginButton()"/>
+    </div>
+
+    <div class="grid-preview">
+      <div class="chip">
+        <div class="chip-label">Execution + Stability</div>
+        <div class="chip-name">Systems Stabilizer</div>
+      </div>
+      <div class="chip">
+        <div class="chip-label">Execution + Change</div>
+        <div class="chip-name">The Driver</div>
+      </div>
+      <div class="chip">
+        <div class="chip-label">People + Stability</div>
+        <div class="chip-name">Team Builder</div>
+      </div>
+      <div class="chip">
+        <div class="chip-label">People + Change</div>
+        <div class="chip-name">Strategic Shaper</div>
+      </div>
+    </div>
+
+    <button type="button" class="btn btn-primary" id="btn-begin" onclick="startQuiz()" disabled>
+      Begin Assessment &rarr;
+    </button>
+  </div>
+</div>
+
+<!-- ── QUIZ ── -->
+<div class="screen" id="screen-quiz">
+  <div class="quiz-header">
+    <div class="progress-row">
+      <span class="progress-label" id="prog-label">Question 1 of 10</span>
+      <span class="progress-label" id="prog-pct">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="prog-fill"></div>
+    </div>
+  </div>
+
+  <div class="q-card" id="q-card">
+    <div class="q-axis" id="q-axis"></div>
+    <div class="q-text" id="q-text"></div>
+    <div class="likert">
+      <div class="likert-labels">
+        <span>Strongly Disagree</span>
+        <span>Strongly Agree</span>
+      </div>
+      <div class="likert-options" id="likert-options"></div>
+    </div>
+    <div class="q-nav">
+      <button type="button" class="btn btn-ghost" id="btn-back" onclick="goBack()">&larr; Back</button>
+      <button type="button" class="btn btn-primary" id="btn-next" onclick="goNext()" disabled>Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── RESULTS ── -->
+<div class="screen" id="screen-results">
+  <div class="result-card">
+    <div class="archetype-badge" id="res-badge">Your Archetype</div>
+    <div class="archetype-name" id="res-name"></div>
+    <div class="archetype-tagline" id="res-tagline"></div>
+
+    <div class="chart-wrap">
+      <canvas id="radarChart"></canvas>
+    </div>
+
+    <div class="chart-legend" id="chart-legend">
+      <span class="legend-item legend-self"><span class="legend-dot"></span>Self</span>
+      <span class="legend-item legend-peer"><span class="legend-dot"></span>Peer Average</span>
+    </div>
+
+    <div class="peer-count" id="peer-count"></div>
+
+    <div class="dim-grid" id="dim-grid"></div>
+
+    <div id="variance-section">
+      <div class="variance-header">Self-Awareness Variance</div>
+      <div class="variance-grid" id="variance-grid"></div>
+    </div>
+
+    <div class="share-box" id="share-box"></div>
+
+    <div class="result-actions">
+      <button type="button" class="btn btn-ghost" onclick="copyResult()">Copy Summary</button>
+      <button type="button" class="btn btn-primary" onclick="retake()">Retake &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<script src="questions.js"></script>
+<script src="archetypes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
