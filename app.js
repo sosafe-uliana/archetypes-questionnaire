@@ -3,17 +3,7 @@
 // ─── URL initialisation ──────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  const params  = new URLSearchParams(window.location.search);
-  const urlMode = params.get('mode');
-  const urlSubject = params.get('subject');
-
-  if (urlMode === 'peer') {
-    setMode('peer');
-    if (urlSubject) {
-      document.getElementById('subject-name').value = decodeURIComponent(urlSubject);
-      updateBeginButton();
-    }
-  }
+  if (new URLSearchParams(window.location.search).get('mode') === 'peer') setMode('peer');
 });
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -388,12 +378,14 @@ function copyResult() {
   });
 }
 
+function buildPeerUrl() {
+  // Strip query/hash/filename to get the directory, then append 'peer'
+  const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  return base + 'peer';
+}
+
 function copyPeerLink() {
-  const url = new URL(window.location.href);
-  url.search = '';
-  url.searchParams.set('mode', 'peer');
-  url.searchParams.set('subject', evaluatorName);
-  navigator.clipboard.writeText(url.toString()).then(() => {
+  navigator.clipboard.writeText(buildPeerUrl()).then(() => {
     const btn = document.getElementById('btn-copy-peer-link');
     btn.textContent = 'Link copied!';
     setTimeout(() => { btn.textContent = 'Copy peer evaluation link'; }, 2000);
