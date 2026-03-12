@@ -301,6 +301,7 @@ async function loadAndShowResults(key) {
 
   try {
     const [self, peers] = await Promise.all([loadSelfScores(key), loadPeerScores(key)]);
+    subjectKey      = key;
     _selfScores     = self;
     _peerList       = peers || [];
     _peerAvgScores  = _peerList.length > 0 ? avgScores(_peerList) : null;
@@ -355,9 +356,9 @@ function renderResultsUI(isOwnSelf) {
 
   buildDimGrid(viewMode === 'peer' ? _peerAvgScores : primaryScores, _topArchetype);
   buildVarianceSection(_selfScores, _peerAvgScores);
-  buildShareText(_displaySubject, _topArchetype, arch, _selfScores, _peerAvgScores, _peerList.length);
+  buildArchetypeDesc(arch);
 
-  document.getElementById('peer-link-section').style.display = isOwnSelf ? 'block' : 'none';
+  document.getElementById('peer-link-section').style.display = 'block';
 }
 
 function setViewMode(v) {
@@ -480,44 +481,27 @@ function buildVarianceSection(selfScores, peerAvgScores) {
   }).join('');
 }
 
-function buildShareText(subject, top, arch, selfScores, peerAvgScores, peerCount) {
-  const has360 = selfScores && peerAvgScores;
-  const hr     = '\u2500'.repeat(33);
+function buildArchetypeDesc(arch) {
+  const el = document.getElementById('archetype-desc');
+  if (!arch.behaviors) { el.innerHTML = ''; return; }
 
-  let text = `Engineering Leadership Archetype\n${hr}\n`;
-  text += `Name:       ${subject}\n`;
-  if (has360 && peerCount > 0) text += `Peer evals: ${peerCount}\n`;
-  text += `Archetype:  ${top}\n`;
-  text += `\u201c${arch.tagline}\u201d\n\n`;
-  text += `Dimension Scores\n`;
+  const bItems  = arch.behaviors.map(b => `<li>${b}</li>`).join('');
+  const wItems  = arch.watchOut.map(w => `<li>${w}</li>`).join('');
 
-  if (has360) {
-    text += `              Self  Peer Avg\n`;
-    text += `  People:     ${selfScores.peopleScore.toFixed(1)}   ${peerAvgScores.peopleScore.toFixed(1)}\n`;
-    text += `  Execution:  ${selfScores.execScore.toFixed(1)}   ${peerAvgScores.execScore.toFixed(1)}\n`;
-    text += `  Change:     ${selfScores.changeScore.toFixed(1)}   ${peerAvgScores.changeScore.toFixed(1)}\n`;
-    text += `  Stability:  ${selfScores.stabilScore.toFixed(1)}   ${peerAvgScores.stabilScore.toFixed(1)}`;
-  } else {
-    const s = selfScores || peerAvgScores;
-    text += `  People:    ${s.peopleScore.toFixed(1)} / 7\n`;
-    text += `  Execution: ${s.execScore.toFixed(1)} / 7\n`;
-    text += `  Change:    ${s.changeScore.toFixed(1)} / 7\n`;
-    text += `  Stability: ${s.stabilScore.toFixed(1)} / 7`;
-  }
-
-  document.getElementById('share-box').textContent = text;
+  el.innerHTML = `
+    <div class="archetype-desc">
+      <div class="arch-desc-col">
+        <div class="arch-desc-heading">High-leverage behaviors</div>
+        <ul class="arch-desc-list">${bItems}</ul>
+      </div>
+      <div class="arch-desc-col">
+        <div class="arch-desc-heading">Watch out for</div>
+        <ul class="arch-desc-list arch-desc-watch">${wItems}</ul>
+      </div>
+    </div>`;
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
-
-function copyResult() {
-  const txt = document.getElementById('share-box').textContent;
-  navigator.clipboard.writeText(txt).then(() => {
-    const btn = document.querySelector('.result-actions .btn-ghost');
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = 'Copy Summary'; }, 2000);
-  });
-}
 
 function buildPeerUrl() {
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
