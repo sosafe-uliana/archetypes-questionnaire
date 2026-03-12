@@ -30,24 +30,14 @@
       <input type="text" id="subject-name" class="field-input" placeholder="Their first name" oninput="updateBeginButton()"/>
     </div>
 
-    <p class="archetypes-label">Possible archetypes</p>
-    <div class="grid-preview">
-      <div class="chip">
-        <div class="chip-label">Execution + Stability</div>
-        <div class="chip-name">Systems Stabilizer</div>
-      </div>
-      <div class="chip">
-        <div class="chip-label">Execution + Change</div>
-        <div class="chip-name">The Driver</div>
-      </div>
-      <div class="chip">
-        <div class="chip-label">People + Stability</div>
-        <div class="chip-name">Team Builder</div>
-      </div>
-      <div class="chip">
-        <div class="chip-label">People + Change</div>
-        <div class="chip-name">Strategic Shaper</div>
-      </div>
+    <div class="archetypes-preview">
+      <p class="archetypes-preview-heading">You'll land in one of four archetypes</p>
+      <ul class="archetypes-list">
+        <li><strong>Systems Stabilizer</strong> <span>Execution &amp; Stability</span></li>
+        <li><strong>The Driver</strong> <span>Execution &amp; Change</span></li>
+        <li><strong>Team Builder</strong> <span>People &amp; Stability</span></li>
+        <li><strong>Strategic Shaper</strong> <span>People &amp; Change</span></li>
+      </ul>
     </div>
 
     <button type="button" class="btn btn-primary" id="btn-begin" onclick="startQuiz()" disabled>
