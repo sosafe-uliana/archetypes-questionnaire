@@ -21,13 +21,15 @@
       <input type="text" id="evaluator-name" class="field-input" placeholder="e.g. Alex" oninput="updateBeginButton()"/>
     </div>
 
-    <div class="mode-toggle-wrap">
+    <div class="mode-toggle-wrap" id="mode-toggle-wrap">
       <span class="mode-label">Evaluation type</span>
       <div class="mode-toggle">
         <button type="button" class="mode-btn active" id="btn-mode-self" onclick="setMode('self')">Self Evaluation</button>
         <button type="button" class="mode-btn" id="btn-mode-peer" onclick="setMode('peer')">360&deg; Peer</button>
       </div>
     </div>
+
+    <div id="locked-subject-display" class="locked-subject-display"></div>
 
     <div class="field-group" id="subject-field">
       <label class="field-label" for="subject-name">Who are you evaluating?</label>
@@ -72,7 +74,6 @@
   </div>
 
   <div class="q-card" id="q-card">
-    <div class="q-axis" id="q-axis"></div>
     <div class="q-text" id="q-text"></div>
     <div class="likert">
       <div class="likert-labels">
@@ -91,9 +92,15 @@
 <!-- ── RESULTS ── -->
 <div class="screen" id="screen-results">
   <div class="result-card">
-    <div class="archetype-badge" id="res-badge">Your Archetype</div>
+    <div class="archetype-badge" id="res-badge">Archetype</div>
     <div class="archetype-name" id="res-name"></div>
     <div class="archetype-tagline" id="res-tagline"></div>
+
+    <div class="view-toggle" id="view-toggle">
+      <button type="button" class="view-btn active" id="view-btn-both" onclick="setViewMode('both')">Both</button>
+      <button type="button" class="view-btn" id="view-btn-self" onclick="setViewMode('self')">Self</button>
+      <button type="button" class="view-btn" id="view-btn-peer" onclick="setViewMode('peer')">360&deg; Avg</button>
+    </div>
 
     <div class="chart-wrap">
       <canvas id="radarChart"></canvas>
@@ -115,9 +122,17 @@
 
     <div id="peer-link-section" class="peer-link-box">
       <div class="peer-link-title">Invite peers to evaluate you</div>
-      <p class="peer-link-desc">Share this link with colleagues — it opens directly in peer evaluation mode, pre-filled with your name.</p>
+      <p class="peer-link-desc">Share this link with colleagues — it opens directly in 360° mode, pre-filled with your name.</p>
       <button type="button" class="btn btn-ghost peer-link-btn" id="btn-copy-peer-link" onclick="copyPeerLink()">
         Copy peer evaluation link
+      </button>
+    </div>
+
+    <div class="peer-link-box" id="results-link-section">
+      <div class="peer-link-title">Share these results</div>
+      <p class="peer-link-desc">Anyone with this link can view the live results, updated as more peers respond.</p>
+      <button type="button" class="btn btn-ghost peer-link-btn" id="btn-copy-results-link" onclick="copyResultsLink()">
+        Copy results link
       </button>
     </div>
 

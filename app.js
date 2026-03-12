@@ -3,7 +3,19 @@
 // ─── URL initialisation ──────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (new URLSearchParams(window.location.search).get('mode') === 'peer') setMode('peer');
+  const sp           = new URLSearchParams(window.location.search);
+  const resultsName  = sp.get('results');
+  const modeParam    = sp.get('mode');
+  const subjectParam = sp.get('subject');
+
+  if (resultsName) {
+    loadAndShowResults(resultsName);
+    return;
+  }
+  if (modeParam === 'peer') {
+    setMode('peer');
+    if (subjectParam) lockSubject(decodeURIComponent(subjectParam));
+  }
 });
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -15,6 +27,14 @@ let answers       = new Array(10).fill(null);
 let current       = 0;
 let ORDER         = [];
 let chartInst     = null;
+
+// Results state — persisted across view-mode toggles
+let _selfScores     = null;
+let _peerAvgScores  = null;
+let _peerList       = [];
+let _displaySubject = '';
+let _topArchetype   = '';
+let viewMode        = 'both'; // 'both' | 'self' | 'peer'
 
 // Storage is provided by firebase.js (storeSelfScores, loadSelfScores,
 // appendPeerScores, loadPeerScores) loaded before this file.
@@ -29,6 +49,16 @@ function setMode(newMode) {
   document.getElementById('intro-badge').textContent =
     mode === 'self' ? 'Self-Assessment' : '360\u00b0 Peer Evaluation';
   updateBeginButton();
+}
+
+function lockSubject(name) {
+  subjectName = name;
+  document.getElementById('subject-name').value            = name;
+  document.getElementById('mode-toggle-wrap').style.display = 'none';
+  document.getElementById('subject-field').style.display   = 'none';
+  const el = document.getElementById('locked-subject-display');
+  el.textContent   = 'Evaluating ' + name;
+  el.style.display = 'block';
 }
 
 function updateBeginButton() {
@@ -51,11 +81,10 @@ function startQuiz() {
 }
 
 function renderQ() {
-  const q = QUESTIONS[ORDER[current]];
+  const q     = QUESTIONS[ORDER[current]];
   const qText = mode === 'peer' && q.peerText
     ? q.peerText.replace(/\{name\}/g, subjectName)
     : q.text;
-  document.getElementById('q-axis').textContent = q.axis;
   document.getElementById('q-text').textContent = qText;
 
   const wrap = document.getElementById('likert-options');
@@ -84,8 +113,8 @@ function renderQ() {
   document.getElementById('prog-pct').textContent   = pct + '%';
   document.getElementById('prog-fill').style.width  = pct + '%';
   document.getElementById('btn-back').style.visibility = current === 0 ? 'hidden' : 'visible';
-  document.getElementById('btn-next').disabled     = answers[current] === null;
-  document.getElementById('btn-next').textContent  = current === 9 ? 'See Results \u2192' : 'Next \u2192';
+  document.getElementById('btn-next').disabled    = answers[current] === null;
+  document.getElementById('btn-next').textContent = current === 9 ? 'See Results \u2192' : 'Next \u2192';
 
   // re-trigger animation
   const card = document.getElementById('q-card');
@@ -148,7 +177,6 @@ function avgScores(list) {
 // ─── Results ─────────────────────────────────────────────────────────────────
 
 async function showResults() {
-  // Show saving state while Firebase writes/reads complete
   const btnNext = document.getElementById('btn-next');
   btnNext.disabled    = true;
   btnNext.textContent = 'Saving\u2026';
@@ -174,7 +202,6 @@ async function showResults() {
     }
   } catch (err) {
     console.error('Firebase error:', err);
-    // Graceful fallback: show results from the current submission only
     if (mode === 'self') {
       selfScores = currentScores; peerList = []; peerAvgScores = null;
     } else {
@@ -182,54 +209,120 @@ async function showResults() {
     }
   }
 
-  const has360          = selfScores !== null && peerAvgScores !== null;
-  const primaryScores   = mode === 'self' ? selfScores : peerAvgScores;
-  const displaySubject  = mode === 'self' ? evaluatorName : subjectName;
-  const top             = archetypeFromScores(primaryScores);
-  const arch            = ARCHETYPES[top];
+  _selfScores     = selfScores;
+  _peerAvgScores  = peerAvgScores;
+  _peerList       = peerList || [];
+  _displaySubject = mode === 'self' ? evaluatorName : subjectName;
+
+  history.replaceState(null, '', buildResultsUrl(_displaySubject));
+  renderResultsUI(mode === 'self');
+  show('screen-results');
+}
+
+// Load and display results from a shareable ?results=name URL
+async function loadAndShowResults(rawName) {
+  const name = decodeURIComponent(rawName);
+  show('screen-results');
+  document.getElementById('res-name').textContent    = 'Loading\u2026';
+  document.getElementById('res-tagline').textContent = '';
+  document.getElementById('view-toggle').style.display = 'none';
+
+  try {
+    const [self, peers] = await Promise.all([loadSelfScores(name), loadPeerScores(name)]);
+    _selfScores     = self;
+    _peerList       = peers || [];
+    _peerAvgScores  = _peerList.length > 0 ? avgScores(_peerList) : null;
+    _displaySubject = name;
+    renderResultsUI(false);
+  } catch (err) {
+    console.error('Load error:', err);
+    document.getElementById('res-name').textContent    = 'Error loading results';
+    document.getElementById('res-tagline').textContent = 'Could not fetch data. Try again later.';
+  }
+}
+
+function renderResultsUI(isOwnSelf) {
+  const has360        = _selfScores !== null && _peerAvgScores !== null;
+  const primaryScores = _selfScores || _peerAvgScores;
+
+  if (!primaryScores) {
+    document.getElementById('res-name').textContent    = 'No results found';
+    document.getElementById('res-tagline').textContent = 'No data has been saved for this person yet.';
+    return;
+  }
+
+  // Default view mode based on available data
+  viewMode = has360 ? 'both' : (_selfScores ? 'self' : 'peer');
+
+  _topArchetype = archetypeFromScores(primaryScores);
+  const arch    = ARCHETYPES[_topArchetype];
 
   // Header
-  document.getElementById('res-badge').textContent =
-    mode === 'self'
-      ? `${displaySubject}\u2019s Archetype`
-      : `Evaluating ${displaySubject}`;
-  document.getElementById('res-name').textContent    = top;
+  document.getElementById('res-badge').textContent   = `${_displaySubject}\u2019s Archetype`;
+  document.getElementById('res-name').textContent    = _topArchetype;
   document.getElementById('res-tagline').textContent = arch.tagline;
+
+  // View toggle (only when both self and peer data exist)
+  const viewToggle = document.getElementById('view-toggle');
+  viewToggle.style.display = has360 ? 'flex' : 'none';
+  ['self', 'peer', 'both'].forEach(m => {
+    document.getElementById('view-btn-' + m).classList.toggle('active', m === viewMode);
+  });
 
   // Peer count badge
   const peerCountEl = document.getElementById('peer-count');
-  if (peerList && peerList.length > 0) {
-    peerCountEl.textContent =
-      `Based on ${peerList.length} peer evaluation${peerList.length !== 1 ? 's' : ''}`;
+  if (_peerList.length > 0) {
+    peerCountEl.textContent = `Based on ${_peerList.length} peer evaluation${_peerList.length !== 1 ? 's' : ''}`;
     peerCountEl.style.display = 'block';
   } else {
     peerCountEl.style.display = 'none';
   }
 
   // Radar
-  buildRadarChart(selfScores, peerAvgScores);
-  document.getElementById('chart-legend').style.display = has360 ? 'flex' : 'none';
+  buildRadarChart(
+    viewMode !== 'peer' ? _selfScores : null,
+    viewMode !== 'self' ? _peerAvgScores : null
+  );
+  document.getElementById('chart-legend').style.display = has360 && viewMode === 'both' ? 'flex' : 'none';
 
   // Dimension grid
-  buildDimGrid(primaryScores, top);
+  buildDimGrid(viewMode === 'peer' ? _peerAvgScores : primaryScores, _topArchetype);
 
   // Variance
-  buildVarianceSection(selfScores, peerAvgScores);
+  buildVarianceSection(_selfScores, _peerAvgScores);
 
   // Share text
-  buildShareText(displaySubject, top, arch, selfScores, peerAvgScores, peerList ? peerList.length : 0);
+  buildShareText(_displaySubject, _topArchetype, arch, _selfScores, _peerAvgScores, _peerList.length);
 
-  // Peer link box — only shown after self-evaluation
-  document.getElementById('peer-link-section').style.display = mode === 'self' ? 'block' : 'none';
+  // Peer invite — only shown right after the user's own self-eval
+  document.getElementById('peer-link-section').style.display = isOwnSelf ? 'block' : 'none';
+}
 
-  show('screen-results');
+function setViewMode(v) {
+  viewMode = v;
+  ['self', 'peer', 'both'].forEach(m => {
+    document.getElementById('view-btn-' + m).classList.toggle('active', m === v);
+  });
+
+  const has360    = _selfScores !== null && _peerAvgScores !== null;
+  const chartSelf = v !== 'peer' ? _selfScores : null;
+  const chartPeer = v !== 'self' ? _peerAvgScores : null;
+  buildRadarChart(chartSelf, chartPeer);
+  document.getElementById('chart-legend').style.display = has360 && v === 'both' ? 'flex' : 'none';
+
+  const scores = v === 'peer' ? _peerAvgScores : (_selfScores || _peerAvgScores);
+  buildDimGrid(scores, _topArchetype);
+  buildVarianceSection(
+    v === 'peer' ? null : _selfScores,
+    v === 'self' ? null : _peerAvgScores
+  );
 }
 
 function buildRadarChart(selfScores, peerAvgScores) {
   if (chartInst) chartInst.destroy();
 
-  const ctx    = document.getElementById('radarChart').getContext('2d');
-  const toData = s => [s.peopleScore, s.changeScore, s.execScore, s.stabilScore];
+  const ctx      = document.getElementById('radarChart').getContext('2d');
+  const toData   = s => [s.peopleScore, s.changeScore, s.execScore, s.stabilScore];
   const datasets = [];
 
   if (selfScores) {
@@ -264,11 +357,11 @@ function buildRadarChart(selfScores, peerAvgScores) {
       maintainAspectRatio: true,
       scales: {
         r: {
-          min:          1,
-          max:          7,
-          ticks:        { stepSize: 2, font: { size: 10 }, color: '#9ca3af' },
-          grid:         { color: '#e4e7ed' },
-          pointLabels:  { font: { size: 12, weight: '600' }, color: '#374151' },
+          min:         1,
+          max:         7,
+          ticks:       { stepSize: 2, font: { size: 10 }, color: '#9ca3af' },
+          grid:        { color: '#e4e7ed' },
+          pointLabels: { font: { size: 12, weight: '600' }, color: '#374151' },
         },
       },
       plugins: { legend: { display: false } },
@@ -330,15 +423,8 @@ function buildShareText(subject, top, arch, selfScores, peerAvgScores, peerCount
   const hr     = '\u2500'.repeat(33);
 
   let text = `Engineering Leadership Archetype\n${hr}\n`;
-
-  if (mode === 'peer') {
-    text += `Subject:    ${subject}\n`;
-    text += `Evaluator:  ${evaluatorName}\n`;
-    if (peerCount > 1) text += `Responses:  ${peerCount} peer evaluations\n`;
-  } else {
-    text += `Name:       ${subject}\n`;
-  }
-
+  text += `Name:       ${subject}\n`;
+  if (has360 && peerCount > 0) text += `Peer evals: ${peerCount}\n`;
   text += `Archetype:  ${top}\n`;
   text += `\u201c${arch.tagline}\u201d\n\n`;
   text += `Dimension Scores\n`;
@@ -372,9 +458,14 @@ function copyResult() {
 }
 
 function buildPeerUrl() {
-  // Strip query/hash/filename to get the directory, then append 'peer'
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
-  return base + 'peer';
+  const url  = base + 'peer';
+  return evaluatorName ? url + '?subject=' + encodeURIComponent(evaluatorName) : url;
+}
+
+function buildResultsUrl(name) {
+  const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  return base + '?results=' + encodeURIComponent(name);
 }
 
 function copyPeerLink() {
@@ -385,9 +476,18 @@ function copyPeerLink() {
   });
 }
 
+function copyResultsLink() {
+  navigator.clipboard.writeText(buildResultsUrl(_displaySubject)).then(() => {
+    const btn = document.getElementById('btn-copy-results-link');
+    btn.textContent = 'Link copied!';
+    setTimeout(() => { btn.textContent = 'Copy results link'; }, 2000);
+  });
+}
+
 function retake() {
   answers = new Array(10).fill(null);
   current = 0;
+  history.replaceState(null, '', window.location.pathname);
   show('screen-intro');
 }
 
