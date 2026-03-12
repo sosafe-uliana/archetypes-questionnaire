@@ -418,6 +418,15 @@ body {
   width: auto;
 }
 
+.results-save-box {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.results-save-box .peer-link-title {
+  color: #4338ca;
+}
+
 /* ── SHARE BOX ── */
 
 .share-box {

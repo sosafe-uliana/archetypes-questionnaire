@@ -8,9 +8,11 @@
     // Passes through ?subject=Name so the subject field is locked.
     var sp      = new URLSearchParams(window.location.search);
     var subject = sp.get('subject');
+    var key     = sp.get('key');
     var base    = window.location.href.replace(/peer\/?([?#].*)?$/, '');
     var target  = base + '?mode=peer';
     if (subject) target += '&subject=' + encodeURIComponent(subject);
+    if (key)     target += '&key='     + encodeURIComponent(key);
     window.location.replace(target);
   </script>
 </head>

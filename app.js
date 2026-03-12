@@ -4,17 +4,21 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const sp           = new URLSearchParams(window.location.search);
-  const resultsName  = sp.get('results');
+  const resultsKey   = sp.get('results');
+  const resultsName  = sp.get('name');
   const modeParam    = sp.get('mode');
   const subjectParam = sp.get('subject');
+  const keyParam     = sp.get('key');
 
-  if (resultsName) {
-    loadAndShowResults(resultsName);
+  if (resultsKey) {
+    loadAndShowResults(resultsKey, resultsName ? decodeURIComponent(resultsName) : resultsKey);
     return;
   }
   if (modeParam === 'peer') {
     setMode('peer');
-    if (subjectParam) lockSubject(decodeURIComponent(subjectParam));
+    if (subjectParam && keyParam) {
+      lockSubject(decodeURIComponent(subjectParam), decodeURIComponent(keyParam));
+    }
   }
 });
 
@@ -23,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 let mode          = 'self'; // 'self' | 'peer'
 let evaluatorName = '';
 let subjectName   = '';
+let subjectKey    = ''; // unique Firebase key, generated at self-eval start
 let answers       = new Array(10).fill(null);
 let current       = 0;
 let ORDER         = [];
@@ -39,6 +44,13 @@ let viewMode        = 'both'; // 'both' | 'self' | 'peer'
 // Storage is provided by firebase.js (storeSelfScores, loadSelfScores,
 // appendPeerScores, loadPeerScores) loaded before this file.
 
+// ─── Key generation ───────────────────────────────────────────────────────────
+
+function generateKey() {
+  // 6-character alphanumeric (a-z0-9), collision probability negligible for team use
+  return Math.random().toString(36).slice(2, 8);
+}
+
 // ─── Intro UI ────────────────────────────────────────────────────────────────
 
 function setMode(newMode) {
@@ -51,8 +63,9 @@ function setMode(newMode) {
   updateBeginButton();
 }
 
-function lockSubject(name) {
+function lockSubject(name, key) {
   subjectName = name;
+  subjectKey  = key;
   document.getElementById('subject-name').value            = name;
   document.getElementById('mode-toggle-wrap').style.display = 'none';
   document.getElementById('subject-field').style.display   = 'none';
@@ -76,6 +89,7 @@ function startQuiz() {
   answers       = new Array(10).fill(null);
   current       = 0;
   ORDER         = [...Array(10).keys()].sort(() => Math.random() - 0.5);
+  if (mode === 'self') subjectKey = generateKey();
   show('screen-quiz');
   renderQ();
 }
@@ -182,21 +196,22 @@ async function showResults() {
   btnNext.textContent = 'Saving\u2026';
 
   const currentScores = computeScores(answers, ORDER);
-  const subject       = mode === 'self' ? evaluatorName : subjectName;
+  // For self: use the generated subjectKey; for peer: subjectKey was set by lockSubject
+  const storageKey    = subjectKey;
 
   let selfScores, peerList, peerAvgScores;
 
   try {
     if (mode === 'self') {
       selfScores = currentScores;
-      await storeSelfScores(subject, currentScores);
-      peerList      = await loadPeerScores(subject);
+      await storeSelfScores(storageKey, currentScores);
+      peerList      = await loadPeerScores(storageKey);
       peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
     } else {
-      await appendPeerScores(subject, currentScores, evaluatorName);
+      await appendPeerScores(storageKey, currentScores, evaluatorName);
       [peerList, selfScores] = await Promise.all([
-        loadPeerScores(subject),
-        loadSelfScores(subject),
+        loadPeerScores(storageKey),
+        loadSelfScores(storageKey),
       ]);
       peerAvgScores = avgScores(peerList); // always ≥ 1 (includes current)
     }
@@ -214,25 +229,24 @@ async function showResults() {
   _peerList       = peerList || [];
   _displaySubject = mode === 'self' ? evaluatorName : subjectName;
 
-  history.replaceState(null, '', buildResultsUrl(_displaySubject));
+  history.replaceState(null, '', buildResultsUrl(subjectKey, _displaySubject));
   renderResultsUI(mode === 'self');
   show('screen-results');
 }
 
-// Load and display results from a shareable ?results=name URL
-async function loadAndShowResults(rawName) {
-  const name = decodeURIComponent(rawName);
+// Load and display results from a shareable ?results=key&name=Name URL
+async function loadAndShowResults(key, displayName) {
   show('screen-results');
   document.getElementById('res-name').textContent    = 'Loading\u2026';
   document.getElementById('res-tagline').textContent = '';
   document.getElementById('view-toggle').style.display = 'none';
 
   try {
-    const [self, peers] = await Promise.all([loadSelfScores(name), loadPeerScores(name)]);
+    const [self, peers] = await Promise.all([loadSelfScores(key), loadPeerScores(key)]);
     _selfScores     = self;
     _peerList       = peers || [];
     _peerAvgScores  = _peerList.length > 0 ? avgScores(_peerList) : null;
-    _displaySubject = name;
+    _displaySubject = displayName;
     renderResultsUI(false);
   } catch (err) {
     console.error('Load error:', err);
@@ -459,13 +473,14 @@ function copyResult() {
 
 function buildPeerUrl() {
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
-  const url  = base + 'peer';
-  return evaluatorName ? url + '?subject=' + encodeURIComponent(evaluatorName) : url;
+  return base + 'peer?subject=' + encodeURIComponent(evaluatorName)
+              + '&key='         + encodeURIComponent(subjectKey);
 }
 
-function buildResultsUrl(name) {
+function buildResultsUrl(key, name) {
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
-  return base + '?results=' + encodeURIComponent(name);
+  return base + '?results=' + encodeURIComponent(key)
+              + '&name='    + encodeURIComponent(name);
 }
 
 function copyPeerLink() {
@@ -477,7 +492,7 @@ function copyPeerLink() {
 }
 
 function copyResultsLink() {
-  navigator.clipboard.writeText(buildResultsUrl(_displaySubject)).then(() => {
+  navigator.clipboard.writeText(buildResultsUrl(subjectKey, _displaySubject)).then(() => {
     const btn = document.getElementById('btn-copy-results-link');
     btn.textContent = 'Link copied!';
     setTimeout(() => { btn.textContent = 'Copy results link'; }, 2000);

@@ -165,9 +165,21 @@
     (function () {
       const url = buildPeerUrl();
       test('Returns a valid URL',           (() => { try { new URL(url); return true; } catch (_) { return false; } })());
-      test('URL ends with /peer',           url.endsWith('/peer'));
-      test('URL has no query string',       !url.includes('?'));
-      test('URL has no subject param',      !url.includes('subject'));
+      test('URL contains /peer',            url.includes('/peer'));
+      test('URL has subject param',         url.includes('subject='));
+      test('URL has key param',             url.includes('key='));
+      test('URL has no mode param',         !url.includes('mode='));
+    })();
+
+    // ── buildResultsUrl ───────────────────────────────────────────────────────
+
+    section('buildResultsUrl — shareable results link');
+
+    (function () {
+      const url = buildResultsUrl('ab3d7k', 'Alex');
+      test('Returns a valid URL',           (() => { try { new URL(url); return true; } catch (_) { return false; } })());
+      test('URL has results param',         url.includes('results=ab3d7k'));
+      test('URL has name param',            url.includes('name=Alex'));
       test('URL has no mode param',         !url.includes('mode='));
     })();
 
