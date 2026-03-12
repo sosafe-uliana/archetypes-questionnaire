@@ -287,9 +287,15 @@ async function showResults() {
   _peerList       = peerList || [];
   _displaySubject = subjectName; // human-readable
 
-  history.replaceState(null, '', buildResultsUrl(subjectKey));
-  renderResultsUI(mode === 'self');
-  show('screen-results');
+  try {
+    history.replaceState(null, '', buildResultsUrl(subjectKey));
+    renderResultsUI(mode === 'self');
+    show('screen-results');
+  } catch (renderErr) {
+    console.error('Render error:', renderErr);
+    btnNext.disabled    = false;
+    btnNext.textContent = 'See Results \u2192';
+  }
 }
 
 // Load and display results from a shareable ?results=key URL
@@ -483,6 +489,7 @@ function buildVarianceSection(selfScores, peerAvgScores) {
 
 function buildArchetypeDesc(arch) {
   const el = document.getElementById('archetype-desc');
+  if (!el) return;
   if (!arch.behaviors) { el.innerHTML = ''; return; }
 
   const bItems  = arch.behaviors.map(b => `<li>${b}</li>`).join('');
