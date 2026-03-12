@@ -16,35 +16,8 @@ let current       = 0;
 let ORDER         = [];
 let chartInst     = null;
 
-// ─── localStorage helpers ────────────────────────────────────────────────────
-
-function normalizeKey(name) {
-  return name.trim().toLowerCase().replace(/\s+/g, '_');
-}
-
-function storeSelfScores(key, scores) {
-  try { localStorage.setItem('arch_self_' + key, JSON.stringify(scores)); } catch (_) {}
-}
-
-function loadSelfScores(key) {
-  try {
-    const raw = localStorage.getItem('arch_self_' + key);
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) { return null; }
-}
-
-function appendPeerScores(key, scores) {
-  const list = loadPeerScores(key);
-  list.push(scores);
-  try { localStorage.setItem('arch_peer_' + key, JSON.stringify(list)); } catch (_) {}
-}
-
-function loadPeerScores(key) {
-  try {
-    const raw = localStorage.getItem('arch_peer_' + key);
-    return raw ? JSON.parse(raw) : [];
-  } catch (_) { return []; }
-}
+// Storage is provided by firebase.js (storeSelfScores, loadSelfScores,
+// appendPeerScores, loadPeerScores) loaded before this file.
 
 // ─── Intro UI ────────────────────────────────────────────────────────────────
 
@@ -174,22 +147,39 @@ function avgScores(list) {
 
 // ─── Results ─────────────────────────────────────────────────────────────────
 
-function showResults() {
+async function showResults() {
+  // Show saving state while Firebase writes/reads complete
+  const btnNext = document.getElementById('btn-next');
+  btnNext.disabled    = true;
+  btnNext.textContent = 'Saving\u2026';
+
   const currentScores = computeScores(answers, ORDER);
-  const subjectKey    = normalizeKey(mode === 'self' ? evaluatorName : subjectName);
+  const subject       = mode === 'self' ? evaluatorName : subjectName;
 
   let selfScores, peerList, peerAvgScores;
 
-  if (mode === 'self') {
-    selfScores    = currentScores;
-    storeSelfScores(subjectKey, currentScores);
-    peerList      = loadPeerScores(subjectKey);
-    peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
-  } else {
-    appendPeerScores(subjectKey, currentScores);
-    peerList      = loadPeerScores(subjectKey);
-    peerAvgScores = avgScores(peerList); // always ≥ 1
-    selfScores    = loadSelfScores(subjectKey); // may be null
+  try {
+    if (mode === 'self') {
+      selfScores = currentScores;
+      await storeSelfScores(subject, currentScores);
+      peerList      = await loadPeerScores(subject);
+      peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
+    } else {
+      await appendPeerScores(subject, currentScores, evaluatorName);
+      [peerList, selfScores] = await Promise.all([
+        loadPeerScores(subject),
+        loadSelfScores(subject),
+      ]);
+      peerAvgScores = avgScores(peerList); // always ≥ 1 (includes current)
+    }
+  } catch (err) {
+    console.error('Firebase error:', err);
+    // Graceful fallback: show results from the current submission only
+    if (mode === 'self') {
+      selfScores = currentScores; peerList = []; peerAvgScores = null;
+    } else {
+      peerList = [currentScores]; peerAvgScores = currentScores; selfScores = null;
+    }
   }
 
   const has360          = selfScores !== null && peerAvgScores !== null;

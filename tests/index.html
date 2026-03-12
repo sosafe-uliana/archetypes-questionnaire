@@ -40,6 +40,13 @@
 
   <script src="../questions.js"></script>
   <script src="../archetypes.js"></script>
+  <!-- Firebase stubs: keep tests fully offline, no real DB calls -->
+  <script>
+    async function storeSelfScores()  {}
+    async function loadSelfScores()   { return null; }
+    async function appendPeerScores() {}
+    async function loadPeerScores()   { return []; }
+  </script>
   <script src="../app.js"></script>
   <script>
     'use strict';
