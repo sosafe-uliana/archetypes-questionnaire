@@ -31,12 +31,9 @@
   <div id="app-stubs">
     <input  id="evaluator-name" value=""/>
     <input  id="subject-name"   value=""/>
-    <button type="button" id="btn-begin"      disabled></button>
-    <button type="button" id="btn-mode-self"  class="mode-btn active"></button>
-    <button type="button" id="btn-mode-peer"  class="mode-btn"></button>
+    <button type="button" id="btn-begin" disabled></button>
     <div    id="subject-field"></div>
     <div    id="intro-badge"></div>
-    <div    id="mode-toggle-wrap"></div>
     <div    id="locked-subject-display"></div>
     <div    id="name-status"></div>
   </div>
@@ -186,20 +183,16 @@
 
     // ── Mode switching ────────────────────────────────────────────────────────
 
-    section('setMode — peer / self toggle');
+    section('setMode — peer / self');
 
     (function () {
       setMode('peer');
-      test('setMode("peer") → mode === "peer"',           mode === 'peer');
-      test('setMode("peer") → subject-field visible',     document.getElementById('subject-field').style.display !== 'none');
-      test('setMode("peer") → peer button active',        document.getElementById('btn-mode-peer').classList.contains('active'));
-      test('setMode("peer") → self button not active',    !document.getElementById('btn-mode-self').classList.contains('active'));
+      test('setMode("peer") → mode === "peer"',      mode === 'peer');
+      test('setMode("peer") → subject-field visible', document.getElementById('subject-field').style.display !== 'none');
 
       setMode('self');
-      test('setMode("self") → mode === "self"',           mode === 'self');
-      test('setMode("self") → subject-field hidden',      document.getElementById('subject-field').style.display === 'none');
-      test('setMode("self") → self button active',        document.getElementById('btn-mode-self').classList.contains('active'));
-      test('setMode("self") → peer button not active',    !document.getElementById('btn-mode-peer').classList.contains('active'));
+      test('setMode("self") → mode === "self"',      mode === 'self');
+      test('setMode("self") → subject-field hidden',  document.getElementById('subject-field').style.display === 'none');
     })();
 
     // ── Data integrity ────────────────────────────────────────────────────────

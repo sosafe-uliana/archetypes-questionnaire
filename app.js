@@ -57,8 +57,6 @@ function normalizeIdentifier(name) {
 
 function setMode(newMode) {
   mode = newMode;
-  document.getElementById('btn-mode-self').classList.toggle('active', mode === 'self');
-  document.getElementById('btn-mode-peer').classList.toggle('active', mode === 'peer');
   document.getElementById('subject-field').style.display = mode === 'peer' ? 'block' : 'none';
   document.getElementById('intro-badge').textContent =
     mode === 'self' ? 'Self-Assessment' : '360\u00b0 Peer Evaluation';
@@ -70,8 +68,7 @@ function setMode(newMode) {
 async function lockSubject(key) {
   subjectKey  = key;
   subjectName = key; // fallback; updated below once Firebase responds
-  document.getElementById('mode-toggle-wrap').style.display = 'none';
-  document.getElementById('subject-field').style.display   = 'none';
+  document.getElementById('subject-field').style.display = 'none';
   const el = document.getElementById('locked-subject-display');
   el.textContent   = 'Evaluating \u2026';
   el.style.display = 'block';
