@@ -38,6 +38,7 @@
     <div    id="intro-badge"></div>
     <div    id="mode-toggle-wrap"></div>
     <div    id="locked-subject-display"></div>
+    <div    id="name-status"></div>
   </div>
 
   <script src="../questions.js"></script>
@@ -166,8 +167,8 @@
       const url = buildPeerUrl();
       test('Returns a valid URL',           (() => { try { new URL(url); return true; } catch (_) { return false; } })());
       test('URL contains /peer',            url.includes('/peer'));
-      test('URL has subject param',         url.includes('subject='));
       test('URL has key param',             url.includes('key='));
+      test('URL has no subject param',      !url.includes('subject='));
       test('URL has no mode param',         !url.includes('mode='));
     })();
 
@@ -176,10 +177,10 @@
     section('buildResultsUrl — shareable results link');
 
     (function () {
-      const url = buildResultsUrl('ab3d7k', 'Alex');
+      const url = buildResultsUrl('alexk');
       test('Returns a valid URL',           (() => { try { new URL(url); return true; } catch (_) { return false; } })());
-      test('URL has results param',         url.includes('results=ab3d7k'));
-      test('URL has name param',            url.includes('name=Alex'));
+      test('URL has results param',         url.includes('results=alexk'));
+      test('URL has no name param',         !url.includes('name='));
       test('URL has no mode param',         !url.includes('mode='));
     })();
 

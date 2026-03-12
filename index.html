@@ -17,8 +17,10 @@
     <p>10 statements. No right answers. Discover your natural leadership home across four dimensions that matter specifically in engineering organizations.</p>
 
     <div class="field-group">
-      <label class="field-label" for="evaluator-name">Your first name</label>
-      <input type="text" id="evaluator-name" class="field-input" placeholder="e.g. Alex" oninput="updateBeginButton()"/>
+      <label class="field-label" for="evaluator-name">Your unique name or handle</label>
+      <p class="field-hint">This becomes your personal link — must be unique, e.g. "Alex", "AlexK", "alex-eng"</p>
+      <input type="text" id="evaluator-name" class="field-input" placeholder="e.g. AlexK" oninput="onEvaluatorNameInput()"/>
+      <div id="name-status" class="name-status"></div>
     </div>
 
     <div class="mode-toggle-wrap" id="mode-toggle-wrap">

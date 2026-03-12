@@ -19,7 +19,10 @@ const db = firebase.database();
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalizeKey(name) {
-  return name.trim().toLowerCase().replace(/\s+/g, '_');
+  // Firebase keys cannot contain . # $ / [ ]
+  return name.trim().toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[.#$/[\]]/g, '');
 }
 
 function resultsRef(name) {
@@ -28,9 +31,10 @@ function resultsRef(name) {
 
 // ─── Self scores ──────────────────────────────────────────────────────────────
 
-async function storeSelfScores(subjectName, scores) {
+async function storeSelfScores(subjectName, scores, displayName) {
   await resultsRef(subjectName).child('self').set({
     ...scores,
+    displayName: displayName || subjectName,
     timestamp: Date.now(),
   });
 }

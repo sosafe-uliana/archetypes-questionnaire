@@ -3,22 +3,18 @@
 // ─── URL initialisation ──────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  const sp           = new URLSearchParams(window.location.search);
-  const resultsKey   = sp.get('results');
-  const resultsName  = sp.get('name');
-  const modeParam    = sp.get('mode');
-  const subjectParam = sp.get('subject');
-  const keyParam     = sp.get('key');
+  const sp          = new URLSearchParams(window.location.search);
+  const resultsKey  = sp.get('results');
+  const modeParam   = sp.get('mode');
+  const keyParam    = sp.get('key');
 
   if (resultsKey) {
-    loadAndShowResults(resultsKey, resultsName ? decodeURIComponent(resultsName) : resultsKey);
+    loadAndShowResults(decodeURIComponent(resultsKey));
     return;
   }
-  if (modeParam === 'peer') {
+  if (modeParam === 'peer' && keyParam) {
     setMode('peer');
-    if (subjectParam && keyParam) {
-      lockSubject(decodeURIComponent(subjectParam), decodeURIComponent(keyParam));
-    }
+    lockSubject(decodeURIComponent(keyParam));
   }
 });
 
@@ -26,12 +22,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let mode          = 'self'; // 'self' | 'peer'
 let evaluatorName = '';
-let subjectName   = '';
-let subjectKey    = ''; // unique Firebase key, generated at self-eval start
+let subjectName   = '';     // display name of subject (for {name} in questions)
+let subjectKey    = '';     // normalized Firebase key for subject
 let answers       = new Array(10).fill(null);
 let current       = 0;
 let ORDER         = [];
 let chartInst     = null;
+
+// Name availability check
+let nameCheckTimer = null;
+let nameAvailable  = true;
 
 // Results state — persisted across view-mode toggles
 let _selfScores     = null;
@@ -44,11 +44,13 @@ let viewMode        = 'both'; // 'both' | 'self' | 'peer'
 // Storage is provided by firebase.js (storeSelfScores, loadSelfScores,
 // appendPeerScores, loadPeerScores) loaded before this file.
 
-// ─── Key generation ───────────────────────────────────────────────────────────
+// ─── Identifier helpers ───────────────────────────────────────────────────────
 
-function generateKey() {
-  // 6-character alphanumeric (a-z0-9), collision probability negligible for team use
-  return Math.random().toString(36).slice(2, 8);
+// Must mirror normalizeKey() in firebase.js
+function normalizeIdentifier(name) {
+  return name.trim().toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[.#$/[\]]/g, '');
 }
 
 // ─── Intro UI ────────────────────────────────────────────────────────────────
@@ -63,21 +65,77 @@ function setMode(newMode) {
   updateBeginButton();
 }
 
-function lockSubject(name, key) {
-  subjectName = name;
+// Called when a peer opens a link with ?key=... — fetches the display name
+// from Firebase so the subject field and {name} replacements look natural.
+async function lockSubject(key) {
   subjectKey  = key;
-  document.getElementById('subject-name').value            = name;
+  subjectName = key; // fallback; updated below once Firebase responds
   document.getElementById('mode-toggle-wrap').style.display = 'none';
   document.getElementById('subject-field').style.display   = 'none';
   const el = document.getElementById('locked-subject-display');
-  el.textContent   = 'Evaluating ' + name;
+  el.textContent   = 'Evaluating \u2026';
   el.style.display = 'block';
+
+  try {
+    const self = await loadSelfScores(key);
+    if (self && self.displayName) subjectName = self.displayName;
+  } catch (_) { /* use key as fallback */ }
+
+  el.textContent = 'Evaluating ' + subjectName;
+  updateBeginButton();
+}
+
+function onEvaluatorNameInput() {
+  updateBeginButton();
+  if (mode !== 'self') return;
+
+  clearTimeout(nameCheckTimer);
+  const rawName  = document.getElementById('evaluator-name').value.trim();
+  const statusEl = document.getElementById('name-status');
+  const key      = normalizeIdentifier(rawName);
+
+  if (key.length < 2) {
+    statusEl.textContent = rawName.length > 0 ? 'Name must be at least 2 characters' : '';
+    statusEl.className   = 'name-status';
+    nameAvailable = false;
+    updateBeginButton();
+    return;
+  }
+
+  // Block begin until check completes
+  nameAvailable = false;
+  updateBeginButton();
+  statusEl.textContent = 'Checking\u2026';
+  statusEl.className   = 'name-status';
+
+  nameCheckTimer = setTimeout(async () => {
+    try {
+      const existing = await loadSelfScores(key);
+      if (existing) {
+        nameAvailable = false;
+        statusEl.textContent = '\u2717 Already taken \u2014 try a different name or add initials';
+        statusEl.className   = 'name-status taken';
+      } else {
+        nameAvailable = true;
+        statusEl.textContent = '\u2713 Name available';
+        statusEl.className   = 'name-status available';
+      }
+    } catch (_) {
+      nameAvailable = true; // allow proceeding if check fails
+      statusEl.textContent = '';
+      statusEl.className   = 'name-status';
+    }
+    updateBeginButton();
+  }, 600);
 }
 
 function updateBeginButton() {
-  const name    = document.getElementById('evaluator-name').value.trim();
+  const rawName = document.getElementById('evaluator-name').value.trim();
   const subject = document.getElementById('subject-name').value.trim();
-  const valid   = name.length > 0 && (mode === 'self' || subject.length > 0);
+  const key     = normalizeIdentifier(rawName);
+  const valid   = key.length >= 2
+    && (mode === 'self' || subject.length > 0)
+    && (mode !== 'self' || nameAvailable);
   document.getElementById('btn-begin').disabled = !valid;
 }
 
@@ -85,11 +143,15 @@ function updateBeginButton() {
 
 function startQuiz() {
   evaluatorName = document.getElementById('evaluator-name').value.trim();
-  subjectName   = document.getElementById('subject-name').value.trim();
-  answers       = new Array(10).fill(null);
-  current       = 0;
-  ORDER         = [...Array(10).keys()].sort(() => Math.random() - 0.5);
-  if (mode === 'self') subjectKey = generateKey();
+  // In self mode, derive key from the evaluator's chosen name.
+  // In peer mode, subjectKey and subjectName were set by lockSubject().
+  if (mode === 'self') {
+    subjectKey  = normalizeIdentifier(evaluatorName);
+    subjectName = evaluatorName;
+  }
+  answers = new Array(10).fill(null);
+  current = 0;
+  ORDER   = [...Array(10).keys()].sort(() => Math.random() - 0.5);
   show('screen-quiz');
   renderQ();
 }
@@ -196,22 +258,21 @@ async function showResults() {
   btnNext.textContent = 'Saving\u2026';
 
   const currentScores = computeScores(answers, ORDER);
-  // For self: use the generated subjectKey; for peer: subjectKey was set by lockSubject
-  const storageKey    = subjectKey;
 
   let selfScores, peerList, peerAvgScores;
 
   try {
     if (mode === 'self') {
       selfScores = currentScores;
-      await storeSelfScores(storageKey, currentScores);
-      peerList      = await loadPeerScores(storageKey);
+      // Store displayName (the human-readable name) alongside scores
+      await storeSelfScores(subjectKey, currentScores, evaluatorName);
+      peerList      = await loadPeerScores(subjectKey);
       peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
     } else {
-      await appendPeerScores(storageKey, currentScores, evaluatorName);
+      await appendPeerScores(subjectKey, currentScores, evaluatorName);
       [peerList, selfScores] = await Promise.all([
-        loadPeerScores(storageKey),
-        loadSelfScores(storageKey),
+        loadPeerScores(subjectKey),
+        loadSelfScores(subjectKey),
       ]);
       peerAvgScores = avgScores(peerList); // always ≥ 1 (includes current)
     }
@@ -227,15 +288,15 @@ async function showResults() {
   _selfScores     = selfScores;
   _peerAvgScores  = peerAvgScores;
   _peerList       = peerList || [];
-  _displaySubject = mode === 'self' ? evaluatorName : subjectName;
+  _displaySubject = subjectName; // human-readable
 
-  history.replaceState(null, '', buildResultsUrl(subjectKey, _displaySubject));
+  history.replaceState(null, '', buildResultsUrl(subjectKey));
   renderResultsUI(mode === 'self');
   show('screen-results');
 }
 
-// Load and display results from a shareable ?results=key&name=Name URL
-async function loadAndShowResults(key, displayName) {
+// Load and display results from a shareable ?results=key URL
+async function loadAndShowResults(key) {
   show('screen-results');
   document.getElementById('res-name').textContent    = 'Loading\u2026';
   document.getElementById('res-tagline').textContent = '';
@@ -246,7 +307,8 @@ async function loadAndShowResults(key, displayName) {
     _selfScores     = self;
     _peerList       = peers || [];
     _peerAvgScores  = _peerList.length > 0 ? avgScores(_peerList) : null;
-    _displaySubject = displayName;
+    // Use stored displayName if available, otherwise fall back to key
+    _displaySubject = (self && self.displayName) ? self.displayName : key;
     renderResultsUI(false);
   } catch (err) {
     console.error('Load error:', err);
@@ -265,25 +327,21 @@ function renderResultsUI(isOwnSelf) {
     return;
   }
 
-  // Default view mode based on available data
   viewMode = has360 ? 'both' : (_selfScores ? 'self' : 'peer');
 
   _topArchetype = archetypeFromScores(primaryScores);
   const arch    = ARCHETYPES[_topArchetype];
 
-  // Header
   document.getElementById('res-badge').textContent   = `${_displaySubject}\u2019s Archetype`;
   document.getElementById('res-name').textContent    = _topArchetype;
   document.getElementById('res-tagline').textContent = arch.tagline;
 
-  // View toggle (only when both self and peer data exist)
   const viewToggle = document.getElementById('view-toggle');
   viewToggle.style.display = has360 ? 'flex' : 'none';
   ['self', 'peer', 'both'].forEach(m => {
     document.getElementById('view-btn-' + m).classList.toggle('active', m === viewMode);
   });
 
-  // Peer count badge
   const peerCountEl = document.getElementById('peer-count');
   if (_peerList.length > 0) {
     peerCountEl.textContent = `Based on ${_peerList.length} peer evaluation${_peerList.length !== 1 ? 's' : ''}`;
@@ -292,23 +350,16 @@ function renderResultsUI(isOwnSelf) {
     peerCountEl.style.display = 'none';
   }
 
-  // Radar
   buildRadarChart(
     viewMode !== 'peer' ? _selfScores : null,
     viewMode !== 'self' ? _peerAvgScores : null
   );
   document.getElementById('chart-legend').style.display = has360 && viewMode === 'both' ? 'flex' : 'none';
 
-  // Dimension grid
   buildDimGrid(viewMode === 'peer' ? _peerAvgScores : primaryScores, _topArchetype);
-
-  // Variance
   buildVarianceSection(_selfScores, _peerAvgScores);
-
-  // Share text
   buildShareText(_displaySubject, _topArchetype, arch, _selfScores, _peerAvgScores, _peerList.length);
 
-  // Peer invite — only shown right after the user's own self-eval
   document.getElementById('peer-link-section').style.display = isOwnSelf ? 'block' : 'none';
 }
 
@@ -473,14 +524,12 @@ function copyResult() {
 
 function buildPeerUrl() {
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
-  return base + 'peer?subject=' + encodeURIComponent(evaluatorName)
-              + '&key='         + encodeURIComponent(subjectKey);
+  return base + 'peer?key=' + encodeURIComponent(subjectKey);
 }
 
-function buildResultsUrl(key, name) {
+function buildResultsUrl(key) {
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
-  return base + '?results=' + encodeURIComponent(key)
-              + '&name='    + encodeURIComponent(name);
+  return base + '?results=' + encodeURIComponent(key);
 }
 
 function copyPeerLink() {
@@ -492,7 +541,7 @@ function copyPeerLink() {
 }
 
 function copyResultsLink() {
-  navigator.clipboard.writeText(buildResultsUrl(subjectKey, _displaySubject)).then(() => {
+  navigator.clipboard.writeText(buildResultsUrl(subjectKey)).then(() => {
     const btn = document.getElementById('btn-copy-results-link');
     btn.textContent = 'Link copied!';
     setTimeout(() => { btn.textContent = 'Copy results link'; }, 2000);
