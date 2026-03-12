@@ -57,7 +57,8 @@ function normalizeIdentifier(name) {
 
 function setMode(newMode) {
   mode = newMode;
-  document.getElementById('subject-field').style.display = mode === 'peer' ? 'block' : 'none';
+  document.getElementById('subject-field').style.display   = mode === 'peer' ? 'block' : 'none';
+  document.getElementById('evaluator-field').style.display = mode === 'peer' ? 'none' : 'block';
   document.getElementById('intro-badge').textContent =
     mode === 'self' ? 'Self-Assessment' : '360\u00b0 Peer Evaluation';
   updateBeginButton();
@@ -127,13 +128,14 @@ function onEvaluatorNameInput() {
 }
 
 function updateBeginButton() {
+  if (mode === 'peer') {
+    // Peer mode: no name needed — just wait for lockSubject to set subjectKey
+    document.getElementById('btn-begin').disabled = subjectKey.length === 0;
+    return;
+  }
   const rawName = document.getElementById('evaluator-name').value.trim();
-  const subject = document.getElementById('subject-name').value.trim();
   const key     = normalizeIdentifier(rawName);
-  const valid   = key.length >= 2
-    && (mode === 'self' || subject.length > 0)
-    && (mode !== 'self' || nameAvailable);
-  document.getElementById('btn-begin').disabled = !valid;
+  document.getElementById('btn-begin').disabled = !(key.length >= 2 && nameAvailable);
 }
 
 // ─── Quiz ────────────────────────────────────────────────────────────────────
