@@ -274,9 +274,10 @@ async function showResults() {
   // Self mode
   let selfScores = currentScores, peerList = [], peerAvgScores = null;
   try {
-    const token = await getOrCreateToken(subjectKey);
+    const token    = await getOrCreateToken(subjectKey);
+    const isSoSafe = document.getElementById('is-sosafe')?.checked ?? false;
     subjectToken = token;
-    await storeSelfScores(subjectKey, currentScores, evaluatorName, token);
+    await storeSelfScores(subjectKey, currentScores, evaluatorName, token, isSoSafe);
     peerList      = await loadPeerScores(subjectKey);
     peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
   } catch (err) {

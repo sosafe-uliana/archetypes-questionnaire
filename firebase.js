@@ -68,11 +68,12 @@ async function getOrCreateToken(key) {
 
 // ─── Self scores ──────────────────────────────────────────────────────────────
 
-async function storeSelfScores(subjectName, scores, displayName, token) {
+async function storeSelfScores(subjectName, scores, displayName, token, isSoSafe) {
   const data = {
     ...scores,
     displayName: displayName || subjectName,
-    timestamp: Date.now(),
+    isSoSafe:    !!isSoSafe,
+    timestamp:   Date.now(),
   };
   if (token) data.token = token;
   await resultsRef(subjectName).child('self').set(data);
