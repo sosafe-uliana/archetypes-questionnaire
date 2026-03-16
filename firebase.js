@@ -111,6 +111,11 @@ async function storeFeedback(key, rating, comment, archetype) {
   });
 }
 
+async function loadFeedback(key) {
+  const snap = await resultsRef(key).child('feedback').get();
+  return snap.exists() ? snap.val() : null;
+}
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 async function loadAllResults() {

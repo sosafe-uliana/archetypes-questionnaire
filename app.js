@@ -41,7 +41,8 @@ let _peerList       = [];
 let _displaySubject = '';
 let _topArchetype   = '';
 let viewMode        = 'both'; // 'both' | 'self' | 'peer'
-let _feedbackRating = null;
+let _feedbackRating    = null;
+let _existingFeedback  = null;
 
 // Storage is provided by firebase.js (storeSelfScores, loadSelfScores,
 // appendPeerScores, loadPeerScores) loaded before this file.
@@ -285,10 +286,11 @@ async function showResults() {
     // Fall through with local scores only
   }
 
-  _selfScores     = selfScores;
-  _peerAvgScores  = peerAvgScores;
-  _peerList       = peerList;
-  _displaySubject = subjectName;
+  _selfScores       = selfScores;
+  _peerAvgScores    = peerAvgScores;
+  _peerList         = peerList;
+  _displaySubject   = subjectName;
+  _existingFeedback = null;
 
   try {
     history.replaceState(null, '', buildResultsUrl(subjectToken || subjectKey));
@@ -312,10 +314,11 @@ async function loadAndShowResults(key) {
     const resolvedKey = await resolveToken(key);
     subjectKey   = resolvedKey;
     subjectToken = key; // keep original token for link generation
-    const [self, peers] = await Promise.all([loadSelfScores(resolvedKey), loadPeerScores(resolvedKey)]);
+    const [self, peers, feedback] = await Promise.all([loadSelfScores(resolvedKey), loadPeerScores(resolvedKey), loadFeedback(resolvedKey)]);
     _selfScores     = self;
     _peerList       = peers || [];
     _peerAvgScores  = _peerList.length > 0 ? avgScores(_peerList) : null;
+    _existingFeedback = feedback || null;
     // Use stored displayName if available, otherwise fall back to resolved key
     _displaySubject = (self && self.displayName) ? self.displayName : resolvedKey;
     renderResultsUI(false);
@@ -559,28 +562,22 @@ function show(id) {
 
 function resetFeedbackUI() {
   _feedbackRating = null;
-  const yes    = document.getElementById('btn-feedback-yes');
-  const no     = document.getElementById('btn-feedback-no');
-  const submit = document.getElementById('btn-feedback-submit');
-  const comment = document.getElementById('feedback-comment');
   const section = document.getElementById('feedback-section');
-  if (!yes) return;
-  yes.classList.remove('active');
-  no.classList.remove('active');
-  submit.style.display = 'none';
-  submit.disabled      = false;
-  submit.textContent   = 'Submit feedback';
-  if (comment) comment.value = '';
-  if (section) section.innerHTML = section.innerHTML; // reset to original HTML
-  // Re-render from scratch so the section is never in a "submitted" state on re-render
-  if (section) section.innerHTML = `
+  if (!section) return;
+
+  if (_existingFeedback) {
+    section.innerHTML = '<p class="feedback-done">Thanks for your feedback!</p>';
+    return;
+  }
+
+  section.innerHTML = `
     <div class="feedback-title">Does this archetype feel right?</div>
     <div class="feedback-rating">
       <button type="button" class="btn feedback-btn" id="btn-feedback-yes" onclick="selectFeedbackRating('yes')">&#128077; Yes</button>
       <button type="button" class="btn feedback-btn" id="btn-feedback-no" onclick="selectFeedbackRating('no')">&#128078; Not quite</button>
     </div>
     <textarea id="feedback-comment" class="field-input feedback-comment" placeholder="Anything to add? (optional)" rows="2"></textarea>
-    <button type="button" class="btn btn-primary" id="btn-feedback-submit" onclick="sendFeedback()">Submit feedback</button>`;
+    <button type="button" class="btn btn-primary" id="btn-feedback-submit" onclick="sendFeedback()" style="display:none">Submit feedback</button>`;
 }
 
 function selectFeedbackRating(v) {
@@ -598,6 +595,7 @@ async function sendFeedback() {
   btn.textContent = 'Saving\u2026';
   try {
     await storeFeedback(subjectKey, _feedbackRating, comment, _topArchetype);
+    _existingFeedback = { rating: _feedbackRating, comment };
     document.getElementById('feedback-section').innerHTML =
       '<p class="feedback-done">Thanks for your feedback!</p>';
   } catch (err) {

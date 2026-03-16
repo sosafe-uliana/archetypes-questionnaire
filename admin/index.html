@@ -110,8 +110,10 @@
         const feedback  = val.feedback || null;
         const scores    = self || (peers.length > 0 ? avgScores(peers) : null);
         const archetype = scores ? archetypeFromScores(scores) : null;
+        const token     = self?.token || null;
         return {
           key,
+          token,
           displayName: self?.displayName || key,
           isSoSafe:    self?.isSoSafe || false,
           archetype,
@@ -170,7 +172,7 @@
           <h2>All Results${filterSoSafe ? ' — SoSafe' : ''}</h2>
           <table>
             <thead><tr>
-              <th>Name</th><th>Archetype</th><th>SoSafe</th><th>Peers</th><th>Feedback</th><th>Comment</th><th>Date</th>
+              <th>Name</th><th>Archetype</th><th>SoSafe</th><th>Peers</th><th>Feedback</th><th>Comment</th><th>Date</th><th>Links</th>
             </tr></thead>
             <tbody>
               ${rows.map(r => `<tr>
@@ -183,6 +185,9 @@
                   : '<span class="badge badge-none">—</span>'}</td>
                 <td class="comment">${r.feedback?.comment || '—'}</td>
                 <td class="date-col">${fmtDate(r.timestamp)}</td>
+                <td>${r.token || r.key
+                  ? `<a href="../?results=${r.token || r.key}" target="_blank">Results</a> &middot; <a href="../peer?key=${r.token || r.key}" target="_blank">Peer</a>`
+                  : '—'}</td>
               </tr>`).join('')}
             </tbody>
           </table>
