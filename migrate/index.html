@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Token Migration — Archetypes</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg: #f7f8fa; --card: #fff; --border: #e4e7ed; --text: #1a1d23; --sub: #6b7280; --accent: #2563eb; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 40px 24px; max-width: 600px; margin: 0 auto; }
+    h1   { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    p    { color: var(--sub); font-size: 14px; line-height: 1.65; margin-bottom: 24px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; border-radius: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--accent); color: #fff; font-family: inherit; }
+    .btn:disabled { background: #c7d2fe; cursor: not-allowed; }
+    #log { margin-top: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; font-size: 13px; font-family: 'SF Mono', ui-monospace, monospace; line-height: 1.9; min-height: 80px; white-space: pre-wrap; }
+    .ok   { color: #059669; }
+    .skip { color: var(--sub); }
+    .err  { color: #dc2626; }
+    .done { font-weight: 700; }
+    a     { color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; display: inline-block; margin-top: 20px; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Token Migration</h1>
+  <p>Generates opaque 8-character tokens for all existing records that don't have one yet. Safe to run multiple times — already-tokenised records are skipped.</p>
+  <button class="btn" id="btn-run" onclick="runMigration()">Run Migration</button>
+  <div id="log">Ready. Press the button to start.</div>
+  <a href="../admin/">← Back to admin</a>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script>
+    'use strict';
+
+    firebase.initializeApp({
+      apiKey:            'AIzaSyDR60eN3IkP0pz5-zoHWyJMzLDJVGYEDF8',
+      authDomain:        'archetypes-questionnaire.firebaseapp.com',
+      databaseURL:       'https://archetypes-questionnaire-default-rtdb.europe-west1.firebasedatabase.app',
+      projectId:         'archetypes-questionnaire',
+      storageBucket:     'archetypes-questionnaire.firebasestorage.app',
+      messagingSenderId: '235461999597',
+      appId:             '1:235461999597:web:2116dcf8fe224080a185e4',
+    });
+    const db = firebase.database();
+
+    const logEl = document.getElementById('log');
+
+    function appendLog(text, cls) {
+      logEl.innerHTML += `<span class="${cls || ''}">${text}</span>\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function generateToken() {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      return Array.from({length: 8}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    }
+
+    async function generateUniqueToken() {
+      for (let i = 0; i < 20; i++) {
+        const token = generateToken();
+        const snap  = await db.ref('tokens/' + token).get();
+        if (!snap.exists()) return token;
+      }
+      throw new Error('Could not generate unique token after 20 attempts');
+    }
+
+    async function runMigration() {
+      const btn = document.getElementById('btn-run');
+      btn.disabled = true;
+      logEl.innerHTML = '';
+      appendLog('Starting migration…\n');
+
+      try {
+        const snap = await db.ref('results').get();
+        if (!snap.exists()) {
+          appendLog('No records found.', 'skip');
+          btn.disabled = false;
+          return;
+        }
+
+        const results = snap.val();
+        const keys    = Object.keys(results);
+        let migrated = 0, skipped = 0, errors = 0;
+
+        for (const key of keys) {
+          const self = results[key]?.self;
+          if (!self) {
+            appendLog(`skip  ${key}  — no self record`, 'skip');
+            skipped++;
+            continue;
+          }
+          if (self.token) {
+            appendLog(`skip  ${key}  → already has token ${self.token}`, 'skip');
+            skipped++;
+            continue;
+          }
+          try {
+            const token = await generateUniqueToken();
+            await Promise.all([
+              db.ref('tokens/' + token).set(key),
+              db.ref('results/' + key + '/self/token').set(token),
+            ]);
+            appendLog(`ok    ${key}  → ${token}`, 'ok');
+            migrated++;
+          } catch (err) {
+            appendLog(`err   ${key}  — ${err.message}`, 'err');
+            errors++;
+          }
+        }
+
+        appendLog(`\nDone.  Migrated: ${migrated}  Skipped: ${skipped}  Errors: ${errors}`, 'done');
+      } catch (err) {
+        appendLog('Fatal error: ' + err.message, 'err');
+      }
+
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>

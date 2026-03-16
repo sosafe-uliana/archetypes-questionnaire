@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Engineering Leadership Archetypes</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f7f8fa; --card: #fff; --border: #e4e7ed; --text: #1a1d23;
+      --sub: #6b7280; --accent: #2563eb; --accent-light: #eff4ff;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 32px 24px; min-height: 100vh; }
+    h1  { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: var(--sub); margin-bottom: 28px; }
+    h2  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--sub); margin-bottom: 14px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 28px; }
+    .stat-card  { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+    .stat-value { font-size: 30px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+    .stat-label { font-size: 11px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: .07em; }
+    .section    { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .arch-row   { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .arch-row:last-child { margin-bottom: 0; }
+    .arch-label { font-size: 13px; font-weight: 600; width: 170px; flex-shrink: 0; }
+    .arch-track { flex: 1; height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; }
+    .arch-fill  { height: 100%; border-radius: 99px; }
+    .arch-meta  { font-size: 12px; color: var(--sub); width: 80px; text-align: right; flex-shrink: 0; }
+    table       { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--sub); border-bottom: 1.5px solid var(--border); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .key-sub   { color: var(--sub); font-size: 11px; margin-top: 2px; }
+    .badge     { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-yes  { background: #d1fae5; color: #059669; }
+    .badge-no   { background: #fee2e2; color: #dc2626; }
+    .badge-none { background: var(--bg); color: var(--sub); }
+    .comment    { max-width: 220px; word-wrap: break-word; color: var(--sub); }
+    .date-col   { white-space: nowrap; color: var(--sub); }
+    a { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 13px; }
+    a:hover { text-decoration: underline; }
+    .loading { text-align: center; padding: 60px; color: var(--sub); }
+    .refresh-btn { float: right; font-size: 13px; font-weight: 600; background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; cursor: pointer; color: var(--sub); font-family: inherit; }
+    .refresh-btn:hover { background: var(--bg); }
+  </style>
+</head>
+<body>
+  <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+  <h1>Archetypes Admin</h1>
+  <p class="subtitle">All data is live from Firebase.</p>
+  <div id="app"><p class="loading">Loading data…</p></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script>
+    'use strict';
+
+    firebase.initializeApp({
+      apiKey:            'AIzaSyDR60eN3IkP0pz5-zoHWyJMzLDJVGYEDF8',
+      authDomain:        'archetypes-questionnaire.firebaseapp.com',
+      databaseURL:       'https://archetypes-questionnaire-default-rtdb.europe-west1.firebasedatabase.app',
+      projectId:         'archetypes-questionnaire',
+      storageBucket:     'archetypes-questionnaire.firebasestorage.app',
+      messagingSenderId: '235461999597',
+      appId:             '1:235461999597:web:2116dcf8fe224080a185e4',
+    });
+    const db = firebase.database();
+
+    const ARCHETYPES = ['Systems Stabilizer', 'The Driver', 'Team Builder', 'Strategic Shaper'];
+    const ARCH_COLOR = {
+      'Systems Stabilizer': '#2563eb',
+      'The Driver':         '#ea580c',
+      'Team Builder':       '#059669',
+      'Strategic Shaper':   '#7c3aed',
+    };
+
+    function archetypeFromScores({ peopleScore, execScore, changeScore, stabilScore }) {
+      return [
+        { name: 'Systems Stabilizer', s: execScore   + stabilScore },
+        { name: 'The Driver',         s: execScore   + changeScore },
+        { name: 'Team Builder',       s: peopleScore + stabilScore },
+        { name: 'Strategic Shaper',   s: peopleScore + changeScore },
+      ].sort((a, b) => b.s - a.s)[0].name;
+    }
+
+    function avgScores(list) {
+      const avg = k => list.reduce((s, r) => s + r[k], 0) / list.length;
+      return { peopleScore: avg('peopleScore'), execScore: avg('execScore'), changeScore: avg('changeScore'), stabilScore: avg('stabilScore') };
+    }
+
+    function fmtDate(ts) {
+      if (!ts) return '—';
+      return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function pct(n, d) { return d ? Math.round(n / d * 100) : 0; }
+
+    async function main() {
+      const snap = await db.ref('results').get();
+      const results = snap.exists() ? snap.val() : {};
+
+      const rows = Object.entries(results).map(([key, val]) => {
+        const self      = val.self || null;
+        const peers     = val.peers ? Object.values(val.peers) : [];
+        const feedback  = val.feedback || null;
+        const scores    = self || (peers.length > 0 ? avgScores(peers) : null);
+        const archetype = scores ? archetypeFromScores(scores) : null;
+        return {
+          key,
+          displayName: self?.displayName || key,
+          archetype,
+          peerCount:   peers.length,
+          feedback,
+          timestamp:   self?.timestamp || null,
+        };
+      }).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      // ── Stats ──
+      const withSelf     = rows.filter(r => r.archetype);
+      const withFeedback = rows.filter(r => r.feedback);
+      const yesCount     = withFeedback.filter(r => r.feedback.rating === 'yes').length;
+      const totalPeers   = rows.reduce((s, r) => s + r.peerCount, 0);
+
+      // ── Archetype distribution ──
+      const dist = Object.fromEntries(ARCHETYPES.map(n => [n, { count: 0, yes: 0, no: 0 }]));
+      withSelf.forEach(r => {
+        if (dist[r.archetype]) {
+          dist[r.archetype].count++;
+          if (r.feedback) dist[r.archetype][r.feedback.rating]++;
+        }
+      });
+      const maxCount = Math.max(...ARCHETYPES.map(n => dist[n].count), 1);
+
+      document.getElementById('app').innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value">${withSelf.length}</div><div class="stat-label">Assessments</div></div>
+          <div class="stat-card"><div class="stat-value">${totalPeers}</div><div class="stat-label">Peer responses</div></div>
+          <div class="stat-card"><div class="stat-value">${withFeedback.length}</div><div class="stat-label">Feedbacks</div></div>
+          <div class="stat-card"><div class="stat-value">${withFeedback.length ? pct(yesCount, withFeedback.length) + '%' : '—'}</div><div class="stat-label">Feels right</div></div>
+        </div>
+
+        <div class="section">
+          <h2>Archetype Distribution</h2>
+          ${ARCHETYPES.map(n => {
+            const d   = dist[n];
+            const fbTotal = d.yes + d.no;
+            return `
+            <div class="arch-row">
+              <div class="arch-label">${n}</div>
+              <div class="arch-track"><div class="arch-fill" style="width:${pct(d.count, maxCount)}%;background:${ARCH_COLOR[n]}"></div></div>
+              <div class="arch-meta">${d.count} resp${fbTotal ? ' &middot; ' + pct(d.yes, fbTotal) + '% ✓' : ''}</div>
+            </div>`;
+          }).join('')}
+        </div>
+
+        <div class="section">
+          <h2>All Results</h2>
+          <table>
+            <thead><tr>
+              <th>Name</th><th>Archetype</th><th>Peers</th><th>Feedback</th><th>Comment</th><th>Date</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => `<tr>
+                <td><strong>${r.displayName}</strong><div class="key-sub">${r.key}</div></td>
+                <td>${r.archetype || '—'}</td>
+                <td>${r.peerCount || '—'}</td>
+                <td>${r.feedback
+                  ? `<span class="badge badge-${r.feedback.rating}">${r.feedback.rating === 'yes' ? '👍 Yes' : '👎 No'}</span>`
+                  : '<span class="badge badge-none">—</span>'}</td>
+                <td class="comment">${r.feedback?.comment || '—'}</td>
+                <td class="date-col">${fmtDate(r.timestamp)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section">
+          <h2>Maintenance</h2>
+          <a href="../migrate/">→ Run token migration for existing records</a>
+        </div>`;
+    }
+
+    main().catch(err => {
+      document.getElementById('app').innerHTML =
+        '<p style="color:#dc2626;padding:24px">Error: ' + err.message + '</p>';
+    });
+  </script>
+</body>
+</html>

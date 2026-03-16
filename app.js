@@ -24,6 +24,7 @@ let mode          = 'self'; // 'self' | 'peer'
 let evaluatorName = '';
 let subjectName   = '';     // display name of subject (for {name} in questions)
 let subjectKey    = '';     // normalized Firebase key for subject
+let subjectToken  = '';     // opaque token used in shareable URLs
 let answers       = new Array(10).fill(null);
 let current       = 0;
 let ORDER         = [];
@@ -40,6 +41,7 @@ let _peerList       = [];
 let _displaySubject = '';
 let _topArchetype   = '';
 let viewMode        = 'both'; // 'both' | 'self' | 'peer'
+let _feedbackRating = null;
 
 // Storage is provided by firebase.js (storeSelfScores, loadSelfScores,
 // appendPeerScores, loadPeerScores) loaded before this file.
@@ -66,18 +68,21 @@ function setMode(newMode) {
 
 // Called when a peer opens a link with ?key=... — fetches the display name
 // from Firebase so the subject field and {name} replacements look natural.
-async function lockSubject(key) {
-  subjectKey  = key;
-  subjectName = key; // fallback; updated below once Firebase responds
+async function lockSubject(token) {
+  subjectToken = token;
+  subjectKey   = token; // fallback until resolved
+  subjectName  = token;
   document.getElementById('subject-field').style.display = 'none';
   const el = document.getElementById('locked-subject-display');
   el.textContent   = 'Evaluating \u2026';
   el.style.display = 'block';
 
   try {
+    const key = await resolveToken(token);
+    subjectKey = key;
     const self = await loadSelfScores(key);
     if (self && self.displayName) subjectName = self.displayName;
-  } catch (_) { /* use key as fallback */ }
+  } catch (_) { /* use fallback */ }
 
   el.textContent = 'Evaluating ' + subjectName;
   updateBeginButton();
@@ -258,40 +263,35 @@ async function showResults() {
 
   const currentScores = computeScores(answers, ORDER);
 
-  let selfScores, peerList, peerAvgScores;
+  // Peer mode: save response then show thank-you — never reveal subject's results
+  if (mode === 'peer') {
+    try { await appendPeerScores(subjectKey, currentScores, evaluatorName); }
+    catch (err) { console.error('Firebase error (peer):', err); }
+    show('screen-thanks');
+    return;
+  }
 
+  // Self mode
+  let selfScores = currentScores, peerList = [], peerAvgScores = null;
   try {
-    if (mode === 'self') {
-      selfScores = currentScores;
-      // Store displayName (the human-readable name) alongside scores
-      await storeSelfScores(subjectKey, currentScores, evaluatorName);
-      peerList      = await loadPeerScores(subjectKey);
-      peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
-    } else {
-      await appendPeerScores(subjectKey, currentScores, evaluatorName);
-      [peerList, selfScores] = await Promise.all([
-        loadPeerScores(subjectKey),
-        loadSelfScores(subjectKey),
-      ]);
-      peerAvgScores = avgScores(peerList); // always ≥ 1 (includes current)
-    }
+    const token = await getOrCreateToken(subjectKey);
+    subjectToken = token;
+    await storeSelfScores(subjectKey, currentScores, evaluatorName, token);
+    peerList      = await loadPeerScores(subjectKey);
+    peerAvgScores = peerList.length > 0 ? avgScores(peerList) : null;
   } catch (err) {
     console.error('Firebase error:', err);
-    if (mode === 'self') {
-      selfScores = currentScores; peerList = []; peerAvgScores = null;
-    } else {
-      peerList = [currentScores]; peerAvgScores = currentScores; selfScores = null;
-    }
+    // Fall through with local scores only
   }
 
   _selfScores     = selfScores;
   _peerAvgScores  = peerAvgScores;
-  _peerList       = peerList || [];
-  _displaySubject = subjectName; // human-readable
+  _peerList       = peerList;
+  _displaySubject = subjectName;
 
   try {
-    history.replaceState(null, '', buildResultsUrl(subjectKey));
-    renderResultsUI(mode === 'self');
+    history.replaceState(null, '', buildResultsUrl(subjectToken || subjectKey));
+    renderResultsUI(true);
     show('screen-results');
   } catch (renderErr) {
     console.error('Render error:', renderErr);
@@ -308,13 +308,15 @@ async function loadAndShowResults(key) {
   document.getElementById('view-toggle').style.display = 'none';
 
   try {
-    const [self, peers] = await Promise.all([loadSelfScores(key), loadPeerScores(key)]);
-    subjectKey      = key;
+    const resolvedKey = await resolveToken(key);
+    subjectKey   = resolvedKey;
+    subjectToken = key; // keep original token for link generation
+    const [self, peers] = await Promise.all([loadSelfScores(resolvedKey), loadPeerScores(resolvedKey)]);
     _selfScores     = self;
     _peerList       = peers || [];
     _peerAvgScores  = _peerList.length > 0 ? avgScores(_peerList) : null;
-    // Use stored displayName if available, otherwise fall back to key
-    _displaySubject = (self && self.displayName) ? self.displayName : key;
+    // Use stored displayName if available, otherwise fall back to resolved key
+    _displaySubject = (self && self.displayName) ? self.displayName : resolvedKey;
     renderResultsUI(false);
   } catch (err) {
     console.error('Load error:', err);
@@ -365,6 +367,7 @@ function renderResultsUI(isOwnSelf) {
   buildDimGrid(viewMode === 'peer' ? _peerAvgScores : primaryScores, _topArchetype);
   buildVarianceSection(_selfScores, _peerAvgScores);
   buildArchetypeDesc(arch);
+  resetFeedbackUI();
 
   document.getElementById('peer-link-section').style.display = 'block';
 }
@@ -514,7 +517,7 @@ function buildArchetypeDesc(arch) {
 
 function buildPeerUrl() {
   const base = window.location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
-  return base + 'peer?key=' + encodeURIComponent(subjectKey);
+  return base + 'peer?key=' + encodeURIComponent(subjectToken || subjectKey);
 }
 
 function buildResultsUrl(key) {
@@ -531,7 +534,7 @@ function copyPeerLink() {
 }
 
 function copyResultsLink() {
-  navigator.clipboard.writeText(buildResultsUrl(subjectKey)).then(() => {
+  navigator.clipboard.writeText(buildResultsUrl(subjectToken || subjectKey)).then(() => {
     const btn = document.getElementById('btn-copy-results-link');
     btn.textContent = 'Link copied!';
     setTimeout(() => { btn.textContent = 'Copy results link'; }, 2000);
@@ -539,8 +542,9 @@ function copyResultsLink() {
 }
 
 function retake() {
-  answers = new Array(10).fill(null);
-  current = 0;
+  answers      = new Array(10).fill(null);
+  current      = 0;
+  subjectToken = '';
   history.replaceState(null, '', window.location.pathname);
   show('screen-intro');
 }
@@ -548,4 +552,56 @@ function retake() {
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+}
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+function resetFeedbackUI() {
+  _feedbackRating = null;
+  const yes    = document.getElementById('btn-feedback-yes');
+  const no     = document.getElementById('btn-feedback-no');
+  const submit = document.getElementById('btn-feedback-submit');
+  const comment = document.getElementById('feedback-comment');
+  const section = document.getElementById('feedback-section');
+  if (!yes) return;
+  yes.classList.remove('active');
+  no.classList.remove('active');
+  submit.style.display = 'none';
+  submit.disabled      = false;
+  submit.textContent   = 'Submit feedback';
+  if (comment) comment.value = '';
+  if (section) section.innerHTML = section.innerHTML; // reset to original HTML
+  // Re-render from scratch so the section is never in a "submitted" state on re-render
+  if (section) section.innerHTML = `
+    <div class="feedback-title">Does this archetype feel right?</div>
+    <div class="feedback-rating">
+      <button type="button" class="btn feedback-btn" id="btn-feedback-yes" onclick="selectFeedbackRating('yes')">&#128077; Yes</button>
+      <button type="button" class="btn feedback-btn" id="btn-feedback-no" onclick="selectFeedbackRating('no')">&#128078; Not quite</button>
+    </div>
+    <textarea id="feedback-comment" class="field-input feedback-comment" placeholder="Anything to add? (optional)" rows="2"></textarea>
+    <button type="button" class="btn btn-primary" id="btn-feedback-submit" onclick="sendFeedback()">Submit feedback</button>`;
+}
+
+function selectFeedbackRating(v) {
+  _feedbackRating = v;
+  document.getElementById('btn-feedback-yes').classList.toggle('active', v === 'yes');
+  document.getElementById('btn-feedback-no').classList.toggle('active', v === 'no');
+  document.getElementById('btn-feedback-submit').style.display = 'block';
+}
+
+async function sendFeedback() {
+  if (!_feedbackRating) return;
+  const comment = document.getElementById('feedback-comment').value.trim();
+  const btn     = document.getElementById('btn-feedback-submit');
+  btn.disabled    = true;
+  btn.textContent = 'Saving\u2026';
+  try {
+    await storeFeedback(subjectKey, _feedbackRating, comment, _topArchetype);
+    document.getElementById('feedback-section').innerHTML =
+      '<p class="feedback-done">Thanks for your feedback!</p>';
+  } catch (err) {
+    console.error('Feedback error:', err);
+    btn.disabled    = false;
+    btn.textContent = 'Submit feedback';
+  }
 }

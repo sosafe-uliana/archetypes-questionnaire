@@ -464,3 +464,62 @@ body {
 
 .result-actions { display: flex; gap: 10px; }
 .result-actions .btn { flex: 1; }
+
+/* ── THANK YOU SCREEN ── */
+
+.thanks-heading { font-size: 22px; margin-bottom: 12px; }
+.thanks-btn { margin-top: 24px; text-decoration: none; }
+
+/* ── FEEDBACK ── */
+
+.feedback-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.feedback-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.feedback-rating {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.feedback-btn {
+  padding: 8px 18px;
+  font-size: 14px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  width: auto;
+}
+
+.feedback-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.feedback-comment {
+  margin-bottom: 12px;
+  resize: none;
+}
+
+.feedback-done {
+  font-size: 14px;
+  font-weight: 600;
+  color: #059669;
+  text-align: center;
+  padding: 8px 0;
+}
+
+#btn-feedback-submit { display: none; }

@@ -74,6 +74,16 @@
   </div>
 </div>
 
+<!-- ── THANK YOU (peer) ── -->
+<div class="screen" id="screen-thanks">
+  <div class="intro-card">
+    <div class="intro-badge">360&deg; Peer Evaluation</div>
+    <h1 class="thanks-heading">Thank you!</h1>
+    <p>Your response has been recorded. The person you evaluated will see it reflected in their results.</p>
+    <a href="/" class="btn btn-primary thanks-btn">Take your own assessment &rarr;</a>
+  </div>
+</div>
+
 <!-- ── RESULTS ── -->
 <div class="screen" id="screen-results">
   <div class="result-card">
@@ -122,6 +132,16 @@
     </div>
 
     <div id="archetype-desc"></div>
+
+    <div id="feedback-section" class="feedback-box">
+      <div class="feedback-title">Does this archetype feel right?</div>
+      <div class="feedback-rating">
+        <button type="button" class="btn feedback-btn" id="btn-feedback-yes" onclick="selectFeedbackRating('yes')">&#128077; Yes</button>
+        <button type="button" class="btn feedback-btn" id="btn-feedback-no" onclick="selectFeedbackRating('no')">&#128078; Not quite</button>
+      </div>
+      <textarea id="feedback-comment" class="field-input feedback-comment" placeholder="Anything to add? (optional)" rows="2"></textarea>
+      <button type="button" class="btn btn-primary" id="btn-feedback-submit" onclick="sendFeedback()">Submit feedback</button>
+    </div>
 
     <div class="result-actions">
       <button type="button" class="btn btn-primary" onclick="retake()">Retake &rarr;</button>
