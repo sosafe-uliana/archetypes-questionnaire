@@ -52,6 +52,7 @@
   <p class="subtitle">All data is live from Firebase.</p>
   <div id="app"><p class="loading">Loading data…</p></div>
 
+  <script src="../questions.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script>
@@ -197,6 +198,17 @@
         <div class="section">
           <h2>Maintenance</h2>
           <a href="../migrate/">→ Run token migration for existing records</a>
+        </div>
+
+        <div class="section">
+          <h2>Questions (${QUESTIONS.length})</h2>
+          <ol style="padding-left:18px;line-height:1.7;">
+            ${QUESTIONS.map((q, i) => `
+            <li style="margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--sub);margin-bottom:2px;">${q.axis} &middot; ${q.pole}</div>
+              <div style="font-size:13px;">${q.text}</div>
+            </li>`).join('')}
+          </ol>
         </div>`;
     }
 
